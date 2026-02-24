@@ -2,14 +2,13 @@
   "name": "@inditextech/weave",
   "version": "2.21.0-SNAPSHOT",
   "description": "Weave.js framework",
-  "packageManager": "npm@10.2.4",
   "workspaces": [
     "packages/*"
   ],
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "build": "nx run-many -t build",
+    "build": "nx run-many -t build --projects=packages/sdk,packages/types",
     "bump:snapshot": "npm ci && nx release version $npm_package_version.$(date \"+%s\")",
     "check": "nx run-many -t check",
     "cleanup": "rm package-lock.json && npkill -D -y",
@@ -21,7 +20,7 @@
     "git:pre-commit": "npm run lint",
     "git:pre-push": "npm run build && npm run test",
     "link": "nx run-many -t link",
-    "lint": "nx run-many -t lint",
+    "lint": "nx run-many -t lint --projects=packages/sdk,packages/types",
     "lint:fix": "nx run-many -t lint:fix",
     "pack": "nx run-many -t pack",
     "prepare": "cd ../ && node code/.husky/install.mjs",
@@ -30,7 +29,7 @@
     "release:prepare": "nx run-many -t release:prepare",
     "release": "nx run-many -t release",
     "reset": "nx reset",
-    "test": "nx run-many -t test",
+    "test": "nx run-many -t test --projects=packages/sdk,packages/types",
     "unpublish": "nx run-many --skip-nx-cache -t unpublish",
     "verdaccio:setup": "node ./verdaccio.setup.js",
     "verify": "npm ci && nx run-many -t verify",
