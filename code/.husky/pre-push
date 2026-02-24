@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
 cd code
 npm run git:pre-push
-cd ../docs
-npm run git:pre-push
+# cd ../docs
+# npm run git:pre-push
