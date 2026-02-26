@@ -159,7 +159,9 @@ const NODES = () => [
 ];
 
 const PLUGINS = (getUser: () => WeaveUser) => [
-  new WeaveStageGridPlugin(),
+  new WeaveStageGridPlugin({
+    config: { type: 'dots' },
+  }),
   new WeaveStagePanningPlugin(),
   new WeaveStageResizePlugin(),
   new WeaveStageZoomPlugin(),
