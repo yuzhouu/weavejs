@@ -316,6 +316,7 @@ export abstract class WeaveNode implements WeaveNodeBase {
         node.draggable(true);
         return;
       }
+
       node.draggable(false);
     };
 
@@ -475,6 +476,9 @@ export abstract class WeaveNode implements WeaveNodeBase {
 
       let originalNode: Konva.Node | null | undefined = undefined;
       let originalContainer: Konva.Node | null | undefined = undefined;
+      let startPosition: Konva.Vector2d | null = null;
+      let lockedAxis: 'x' | 'y' | null = null;
+      let isShiftPressed: boolean = false;
 
       node.on('dragstart', (e) => {
         const nodeTarget = e.target;
@@ -513,6 +517,20 @@ export abstract class WeaveNode implements WeaveNodeBase {
 
         if (realNodeTarget.getAttrs().isCloned) {
           return;
+        }
+
+        lockedAxis = null;
+
+        if (e.evt.shiftKey && !startPosition) {
+          startPosition = realNodeTarget.absolutePosition();
+        }
+
+        if (e.evt.shiftKey) {
+          isShiftPressed = true;
+        } else {
+          lockedAxis = null;
+          startPosition = null;
+          isShiftPressed = false;
         }
 
         if (
@@ -607,6 +625,18 @@ export abstract class WeaveNode implements WeaveNodeBase {
 
         const realNodeTarget: Konva.Node = this.getRealSelectedNode(nodeTarget);
 
+        if (e.evt.shiftKey && !startPosition) {
+          startPosition = realNodeTarget.absolutePosition();
+        }
+
+        if (e.evt.shiftKey) {
+          isShiftPressed = true;
+        } else {
+          lockedAxis = null;
+          startPosition = null;
+          isShiftPressed = false;
+        }
+
         if (
           this.isSelecting() &&
           this.getSelectionPlugin()?.getSelectedNodes().length === 1
@@ -637,8 +667,47 @@ export abstract class WeaveNode implements WeaveNodeBase {
 
       node.on('dragmove', throttle(handleDragMove, DEFAULT_THROTTLE_MS));
 
+      node.dragBoundFunc((pos) => {
+        if (!startPosition) return pos;
+
+        // Only constrain when shift is pressed
+        if (!isShiftPressed) return pos;
+
+        const dx = pos.x - startPosition.x;
+        const dy = pos.y - startPosition.y;
+
+        if (!lockedAxis) {
+          const axisLockThreshold =
+            this.instance.getConfiguration().behaviors.axisLockThreshold;
+          if (
+            Math.abs(dx) < axisLockThreshold &&
+            Math.abs(dy) < axisLockThreshold
+          ) {
+            return pos; // free movement until threshold passed
+          }
+
+          lockedAxis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+        }
+
+        if (lockedAxis === 'x') {
+          return {
+            x: pos.x,
+            y: startPosition.y,
+          };
+        } else {
+          return {
+            x: startPosition.x,
+            y: pos.y,
+          };
+        }
+      });
+
       node.on('dragend', (e) => {
         const nodeTarget = e.target;
+
+        startPosition = null;
+        lockedAxis = null;
+        isShiftPressed = false;
 
         if (this.getSelectionPlugin()?.getSelectedNodes().length === 1) {
           this.instance.releaseMutexLock();
@@ -815,6 +884,11 @@ export abstract class WeaveNode implements WeaveNodeBase {
 
   handleMouseOver(node: Konva.Node): boolean {
     const stage = this.instance.getStage();
+
+    if (stage?.isCmdCtrlPressed?.()) {
+      return false;
+    }
+
     const user = this.instance.getStore().getUser();
     const activeAction = this.instance.getActiveAction();
 
@@ -897,6 +971,12 @@ export abstract class WeaveNode implements WeaveNodeBase {
   }
 
   handleMouseout(node: Konva.Node) {
+    const stage = this.instance.getStage();
+
+    if (stage?.isCmdCtrlPressed?.()) {
+      return;
+    }
+
     const realNode = this.instance.getInstanceRecursive(node);
 
     if (realNode) {
@@ -946,6 +1026,7 @@ export abstract class WeaveNode implements WeaveNodeBase {
     delete cleanedAttrs.mutexUserId;
     delete cleanedAttrs.draggable;
     delete cleanedAttrs.overridesMouseControl;
+    delete cleanedAttrs.dragBoundFunc;
 
     return {
       key: attrs.id ?? '',
@@ -1133,33 +1214,7 @@ export abstract class WeaveNode implements WeaveNodeBase {
   }
 
   private getRealSelectedNode(nodeTarget: Konva.Node) {
-    const stage = this.instance.getStage();
-
-    let realNodeTarget: Konva.Node = nodeTarget;
-
-    if (nodeTarget.getParent() instanceof Konva.Transformer) {
-      const mousePos = stage.getPointerPosition();
-      const intersections = stage.getAllIntersections(mousePos);
-      const nodesIntersected = intersections.filter(
-        (ele) => ele.getAttrs().nodeType
-      );
-
-      if (nodesIntersected.length > 0) {
-        realNodeTarget = this.instance.getInstanceRecursive(
-          nodesIntersected[nodesIntersected.length - 1]
-        );
-      }
-    }
-
-    if (realNodeTarget.getAttrs().nodeId) {
-      const realNode = stage.findOne(`#${realNodeTarget.getAttrs().nodeId}`);
-
-      if (realNode) {
-        realNodeTarget = realNode;
-      }
-    }
-
-    return realNodeTarget;
+    return this.instance.getRealSelectedNode(nodeTarget);
   }
 
   getNodesSelectionFeedbackPlugin() {

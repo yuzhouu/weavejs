@@ -11,7 +11,11 @@ import {
 import { WeaveNode } from '@/nodes/node';
 import { WeaveNodesSelectionPlugin } from '@/plugins/nodes-selection/nodes-selection';
 import { getTopmostShadowHost, isInShadowDOM, resetScale } from '@/utils';
-import { WEAVE_TEXT_NODE_TYPE } from './constants';
+import {
+  WEAVE_STAGE_TEXT_EDITION_MODE,
+  WEAVE_TEXT_NODE_DEFAULT_CONFIG,
+  WEAVE_TEXT_NODE_TYPE,
+} from './constants';
 import { SELECTION_TOOL_ACTION_NAME } from '@/actions/selection-tool/constants';
 import { TEXT_LAYOUT } from '@/actions/text-tool/constants';
 import type {
@@ -21,8 +25,9 @@ import type {
   WeaveTextProperties,
 } from './types';
 import type { KonvaEventObject } from 'konva/lib/Node';
-import { throttle } from 'lodash';
+import { merge, throttle } from 'lodash';
 import { DEFAULT_THROTTLE_MS } from '@/constants';
+import { WEAVE_STAGE_DEFAULT_MODE } from '../stage/constants';
 
 export class WeaveTextNode extends WeaveNode {
   private config: WeaveTextProperties;
@@ -38,11 +43,7 @@ export class WeaveTextNode extends WeaveNode {
 
     const { config } = params ?? {};
 
-    this.config = {
-      transform: {
-        ...config?.transform,
-      },
-    };
+    this.config = merge({}, WEAVE_TEXT_NODE_DEFAULT_CONFIG, config);
 
     this.keyPressHandler = undefined;
     this.editing = false;
@@ -112,6 +113,15 @@ export class WeaveTextNode extends WeaveNode {
     const text = new Konva.Text({
       ...props,
       name: 'node',
+      ...(!this.config.outline.enabled && {
+        strokeEnabled: false,
+      }),
+      ...(this.config.outline.enabled && {
+        strokeEnabled: true,
+        stroke: this.config.outline.color,
+        strokeWidth: this.config.outline.width,
+        fillAfterStrokeEnabled: true,
+      }),
     });
 
     this.setupDefaultNodeAugmentation(text);
@@ -194,19 +204,7 @@ export class WeaveTextNode extends WeaveNode {
         return;
       }
 
-      const stage = this.instance.getStage();
-
-      const mousePos = stage.getPointerPosition();
-      if (mousePos) {
-        const elements = stage.getAllIntersections(mousePos);
-        const onlyTextElements = elements.filter(
-          (ele) => ele.getAttrs().nodeType === WEAVE_TEXT_NODE_TYPE
-        );
-
-        if (onlyTextElements.length > 0) {
-          this.triggerEditMode(onlyTextElements[0] as Konva.Text);
-        }
-      }
+      this.triggerEditMode(text as Konva.Text);
     };
 
     text.on('transform', (e) => {
@@ -265,6 +263,15 @@ export class WeaveTextNode extends WeaveNode {
 
     nodeInstance.setAttrs({
       ...nextProps,
+      ...(!this.config.outline.enabled && {
+        strokeEnabled: false,
+      }),
+      ...(this.config.outline.enabled && {
+        strokeEnabled: true,
+        stroke: this.config.outline.color,
+        strokeWidth: this.config.outline.width,
+        fillAfterStrokeEnabled: true,
+      }),
     });
 
     let width = nextProps.width;
@@ -299,11 +306,13 @@ export class WeaveTextNode extends WeaveNode {
       this.updateTextAreaDOM(nodeInstance as Konva.Text);
     }
 
-    const nodesSelectionPlugin =
-      this.instance.getPlugin<WeaveNodesSelectionPlugin>('nodesSelection');
-    if (nodesSelectionPlugin) {
-      const actualSelectedNodes = nodesSelectionPlugin.getSelectedNodes();
-      nodesSelectionPlugin.setSelectedNodes(actualSelectedNodes);
+    if (!this.editing) {
+      const nodesSelectionPlugin =
+        this.instance.getPlugin<WeaveNodesSelectionPlugin>('nodesSelection');
+      if (nodesSelectionPlugin) {
+        const actualSelectedNodes = nodesSelectionPlugin.getSelectedNodes();
+        nodesSelectionPlugin.setSelectedNodes(actualSelectedNodes);
+      }
     }
   }
 
@@ -318,6 +327,7 @@ export class WeaveTextNode extends WeaveNode {
     delete cleanedAttrs.cancelEditMode;
     delete cleanedAttrs.measureMultilineText;
     delete cleanedAttrs.overridesMouseControl;
+    delete cleanedAttrs.dragBoundFunc;
 
     return {
       key: attrs.id ?? '',
@@ -577,6 +587,8 @@ export class WeaveTextNode extends WeaveNode {
       this.instance.updateNode(this.serialize(textNode));
     };
 
+    const throttledUpdateTextNode = throttle(updateTextNode, 300);
+
     this.textArea.onfocus = () => {
       this.textAreaDomResize(textNode);
     };
@@ -588,11 +600,11 @@ export class WeaveTextNode extends WeaveNode {
     };
     this.textArea.onpaste = () => {
       this.textAreaDomResize(textNode);
-      updateTextNode();
+      throttledUpdateTextNode();
     };
     this.textArea.oninput = () => {
       this.textAreaDomResize(textNode);
-      updateTextNode();
+      throttledUpdateTextNode();
     };
     // lock internal scroll
     this.textAreaSuperContainer.addEventListener('scroll', () => {
@@ -749,7 +761,6 @@ export class WeaveTextNode extends WeaveNode {
         this.textArea.removeEventListener('keydown', handleKeyDown);
         this.textArea.removeEventListener('keyup', handleKeyUp);
         window.removeEventListener('pointerup', handleOutsideClick);
-        window.removeEventListener('pointerdown', handleOutsideClick);
 
         return;
       }
@@ -757,8 +768,9 @@ export class WeaveTextNode extends WeaveNode {
 
     setTimeout(() => {
       window.addEventListener('pointerup', handleOutsideClick);
-      window.addEventListener('pointerdown', handleOutsideClick);
     }, 0);
+
+    this.instance.getStage().mode(WEAVE_STAGE_TEXT_EDITION_MODE);
 
     this.editing = true;
   }
@@ -816,6 +828,8 @@ export class WeaveTextNode extends WeaveNode {
   private removeTextAreaDOM(textNode: Konva.Text) {
     this.instance.releaseMutexLock();
 
+    this.instance.getStage().mode(WEAVE_STAGE_DEFAULT_MODE);
+
     this.editing = false;
     const stage = this.instance.getStage();
 
@@ -832,11 +846,7 @@ export class WeaveTextNode extends WeaveNode {
       this.instance.getPlugin<WeaveNodesSelectionPlugin>('nodesSelection');
     if (selectionPlugin) {
       this.instance.enablePlugin('nodesSelection');
-      const tr = selectionPlugin.getTransformer();
-      if (tr) {
-        tr.nodes([textNode]);
-        tr.show();
-      }
+      selectionPlugin.setSelectedNodes([textNode]);
       this.instance.triggerAction(SELECTION_TOOL_ACTION_NAME);
     }
 

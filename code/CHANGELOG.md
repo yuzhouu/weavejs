@@ -13,9 +13,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- [#941](https://github.com/InditexTech/weavejs/issues/94) Improve Image Tool UX (Async persistence + Simplified Upload Flow)
+
+## [2.23.0] - 2026-02-25
+
 ### Added
 
-- [#905](https://github.com/InditexTech/weavejs/issues/905) Non-segmentary Arrow Tool and customizable arrow head
+- [#937](https://github.com/InditexTech/weavejs/issues/937) Improve performance of selection
+- [#938](https://github.com/InditexTech/weavejs/issues/938) Improve performance of text node when editing
+
+## [2.22.0] - 2026-02-24
+
+### Added
+
+- [#915](https://github.com/InditexTech/weavejs/issues/915) On the urlTransform property of Image nodes also inform the node
+- [#928](https://github.com/InditexTech/weavejs/issues/928) Always-on text outline
+- [#935](https://github.com/InditexTech/weavejs/issues/935) Adjust crop when image is downscaled while maintaining aspect ratio
+
+## [2.21.1] - 2026-02-24
+
+### Fixed
+
+- [#9307](https://github.com/InditexTech/weavejs/issues/930) Avoid setup window events on Stage node initialization
+
+## [2.21.0] - 2026-02-24
+
+### Added
+
+- [#905](https://github.com/InditexTech/weavejs/issues/905) Unified stroke tool with single stroke and customizable tips
+- [#923](https://github.com/InditexTech/weavejs/issues/923) Constrain node dragging to horizontal/vertical axes when holding “Shift” key
+- [#925](https://github.com/InditexTech/weavejs/issues/925) Allow to crop image by pressing cmd/ctrl on corners
 
 ## [2.20.2] - 2026-02-19
 
@@ -1594,7 +1623,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [#24](https://github.com/InditexTech/weavejs/issues/24) Bug when loading rooms with text or images
 - [#18](https://github.com/InditexTech/weavejs/issues/18) Fix awareness not working on store-azure-web-pubsub
 
-[Unreleased]: https://github.com/InditexTech/weavejs/compare/2.20.2...HEAD
+[Unreleased]: https://github.com/InditexTech/weavejs/compare/2.23.0...HEAD
+[2.23.0]: https://github.com/InditexTech/weavejs/compare/2.22.0...2.23.0
+[2.22.0]: https://github.com/InditexTech/weavejs/compare/2.21.1...2.22.0
+[2.21.1]: https://github.com/InditexTech/weavejs/compare/2.21.0...2.21.1
+[2.21.0]: https://github.com/InditexTech/weavejs/compare/2.20.2...2.21.0
 [2.20.2]: https://github.com/InditexTech/weavejs/compare/2.20.1...2.20.2
 [2.20.1]: https://github.com/InditexTech/weavejs/compare/2.20.0...2.20.1
 [2.20.0]: https://github.com/InditexTech/weavejs/compare/2.19.0...2.20.0
