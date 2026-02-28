@@ -7,9 +7,6 @@ declare global {
     Konva: typeof import('konva') | undefined;
     '__ $YJS$ __': typeof import('yjs') | undefined;
     weave: Weave;
-    weaveTextEditing: Record<string, string>;
-    weaveDragVideoParams: WeaveVideoToolDragParams | undefined;
-    weaveDragVideoId: string | undefined;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     clipboardData: any;
   }
