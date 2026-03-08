@@ -22,7 +22,7 @@ import {
   containerOverCursor,
   hasFrames,
   mergeExceptArrays,
-  moveNodeToContainer,
+  moveNodeToContainerNT,
 } from '@/utils';
 import type { WeaveNodesEdgeSnappingPlugin } from '@/plugins/nodes-edge-snapping/nodes-edge-snapping';
 import { throttle } from 'lodash';
@@ -279,6 +279,14 @@ export abstract class WeaveNode implements WeaveNodeBase {
     }
 
     if (
+      this.getSelectionPlugin()?.isDragging() ||
+      this.getSelectionPlugin()?.isTransforming()
+    ) {
+      this.hideHoverState();
+      return;
+    }
+
+    if (
       (selectionPlugin.getSelectedNodes().length === 1 &&
         node === selectionPlugin.getSelectedNodes()[0]) ||
       selectionPlugin.isAreaSelecting()
@@ -306,7 +314,17 @@ export abstract class WeaveNode implements WeaveNodeBase {
     selectionPlugin.getHoverTransformer().nodes([]);
   }
 
-  setupDefaultNodeEvents(node: Konva.Node): void {
+  setupDefaultNodeEvents(
+    node: Konva.Node,
+    options: { performScaleReset: boolean } = { performScaleReset: true }
+  ): void {
+    const { performScaleReset } = mergeExceptArrays(
+      {
+        performScaleReset: true,
+      },
+      options
+    );
+
     const handleNodesChange = () => {
       if (
         !this.isLocked(node as WeaveElementInstance) &&
@@ -344,6 +362,7 @@ export abstract class WeaveNode implements WeaveNodeBase {
         handleNodesChange
       );
 
+      node.off('transformstart');
       node.on('transformstart', (e) => {
         transforming = true;
 
@@ -401,16 +420,16 @@ export abstract class WeaveNode implements WeaveNodeBase {
         });
       };
 
+      node.off('transform');
       node.on('transform', throttle(handleTransform, DEFAULT_THROTTLE_MS));
 
+      node.off('transformend');
       node.on('transformend', (e) => {
         const node = e.target;
 
         if (this.getSelectionPlugin()?.getSelectedNodes().length === 1) {
           this.instance.releaseMutexLock();
         }
-
-        this.getUsersPresencePlugin()?.removePresence(node.id());
 
         if (e.target.getAttrs()._revertStrokeScaleEnabled === true) {
           e.target.setAttr('strokeScaleEnabled', true);
@@ -434,7 +453,9 @@ export abstract class WeaveNode implements WeaveNodeBase {
           nodesSelectionPlugin.getTransformer().forceUpdate();
         }
 
-        this.scaleReset(node);
+        if (performScaleReset) {
+          this.scaleReset(node);
+        }
 
         if (this.getSelectionPlugin()?.getSelectedNodes().length === 1) {
           this.getNodesSelectionFeedbackPlugin()?.showSelectionHalo(node);
@@ -445,9 +466,14 @@ export abstract class WeaveNode implements WeaveNodeBase {
           node.getAttrs().nodeType
         );
         if (nodeHandler) {
-          this.instance.updateNode(
-            nodeHandler.serialize(node as WeaveElementInstance)
-          );
+          const shouldUpdateOnTransform =
+            node.getAttrs().shouldUpdateOnTransform ?? true;
+
+          if (shouldUpdateOnTransform) {
+            this.instance.updateNode(
+              nodeHandler.serialize(node as WeaveElementInstance)
+            );
+          }
         }
 
         this.getNodesSelectionPlugin()?.getHoverTransformer().forceUpdate();
@@ -480,12 +506,20 @@ export abstract class WeaveNode implements WeaveNodeBase {
       let lockedAxis: 'x' | 'y' | null = null;
       let isShiftPressed: boolean = false;
 
+      node.off('dragstart');
       node.on('dragstart', (e) => {
         const nodeTarget = e.target;
 
+        e.cancelBubble = true;
+
         this.getNodesSelectionFeedbackPlugin()?.hideSelectionHalo(nodeTarget);
 
-        const canMove = nodeTarget.canDrag();
+        this.getSelectionPlugin()?.saveDragSelectedNodes();
+        if (this.getSelectionPlugin()?.getDragSelectedNodes().length === 1) {
+          this.getSelectionPlugin()?.setNodesOpacityOnDrag();
+        }
+
+        const canMove = nodeTarget?.canDrag() ?? false;
 
         if (!canMove) {
           nodeTarget.stopDrag();
@@ -533,16 +567,6 @@ export abstract class WeaveNode implements WeaveNodeBase {
           isShiftPressed = false;
         }
 
-        if (
-          this.getNodesSelectionPlugin()?.getSelectedNodes().length === 1 &&
-          realNodeTarget.getAttr('dragStartOpacity') === undefined
-        ) {
-          realNodeTarget.setAttr('dragStartOpacity', realNodeTarget.opacity());
-          realNodeTarget.opacity(
-            this.getNodesSelectionPlugin()?.getDragOpacity()
-          );
-        }
-
         originalNode = realNodeTarget.clone();
         originalContainer = realNodeTarget.getParent();
         if (originalContainer?.getAttrs().nodeId) {
@@ -561,11 +585,6 @@ export abstract class WeaveNode implements WeaveNodeBase {
           const clone = this.instance
             .getCloningManager()
             .cloneNode(realNodeTarget);
-
-          const originalNodeOpacity =
-            realNodeTarget.getAttr('dragStartOpacity') ?? 1;
-          realNodeTarget.setAttrs({ opacity: originalNodeOpacity });
-          realNodeTarget.setAttr('dragStartOpacity', undefined);
 
           if (clone && !this.instance.getCloningManager().isClone(clone)) {
             clone.setAttrs({
@@ -665,6 +684,7 @@ export abstract class WeaveNode implements WeaveNodeBase {
         }
       };
 
+      node.off('dragmove');
       node.on('dragmove', throttle(handleDragMove, DEFAULT_THROTTLE_MS));
 
       node.dragBoundFunc((pos) => {
@@ -702,12 +722,17 @@ export abstract class WeaveNode implements WeaveNodeBase {
         }
       });
 
+      node.off('dragend');
       node.on('dragend', (e) => {
         const nodeTarget = e.target;
 
         startPosition = null;
         lockedAxis = null;
         isShiftPressed = false;
+
+        if (this.getSelectionPlugin()?.getDragSelectedNodes().length === 1) {
+          this.getSelectionPlugin()?.restoreNodesOpacityOnDrag();
+        }
 
         if (this.getSelectionPlugin()?.getSelectedNodes().length === 1) {
           this.instance.releaseMutexLock();
@@ -741,17 +766,6 @@ export abstract class WeaveNode implements WeaveNodeBase {
         this.instance.emitEvent('onDrag', null);
 
         const realNodeTarget: Konva.Node = this.getRealSelectedNode(nodeTarget);
-        this.getUsersPresencePlugin()?.removePresence(realNodeTarget.id());
-
-        if (
-          this.getNodesSelectionPlugin()?.getSelectedNodes().length === 1 &&
-          realNodeTarget.getAttr('dragStartOpacity') !== undefined
-        ) {
-          const originalNodeOpacity =
-            realNodeTarget.getAttr('dragStartOpacity') ?? 1;
-          realNodeTarget.setAttrs({ opacity: originalNodeOpacity });
-          realNodeTarget.setAttr('dragStartOpacity', undefined);
-        }
 
         if (
           this.isSelecting() &&
@@ -788,7 +802,7 @@ export abstract class WeaveNode implements WeaveNodeBase {
 
             let moved = false;
             if (containerToMove && !hasFrames(node)) {
-              moved = moveNodeToContainer(
+              moved = moveNodeToContainerNT(
                 this.instance,
                 realNodeTarget,
                 containerToMove,
@@ -814,6 +828,13 @@ export abstract class WeaveNode implements WeaveNodeBase {
                     nodes: [realNodeTarget],
                   });
                 });
+
+                const selectionPlugin = this.getSelectionPlugin();
+
+                if (selectionPlugin) {
+                  selectionPlugin.setSelectedNodes([realNodeTarget]);
+                  selectionPlugin.getTransformer().forceUpdate();
+                }
               }
             }
 
@@ -855,8 +876,43 @@ export abstract class WeaveNode implements WeaveNodeBase {
         };
       }
 
+      node.on('xChange yChange', () => {
+        const nodeSelectionPlugin = this.getSelectionPlugin();
+
+        if (!nodeSelectionPlugin) return;
+
+        if (
+          nodeSelectionPlugin.isDragging() ||
+          nodeSelectionPlugin.isTransforming()
+        )
+          return;
+
+        const selectedNodes = nodeSelectionPlugin.getSelectedNodes() ?? [];
+
+        let selected = false;
+        for (const selectedNode of selectedNodes) {
+          if (selectedNode.getAttrs().id === node.getAttrs().id) {
+            selected = true;
+            break;
+          }
+        }
+
+        if (selected) {
+          node.handleDeselectNode();
+          node.handleSelectNode();
+        }
+      });
+
       node.handleSelectNode = () => {
-        this.getNodesSelectionFeedbackPlugin()?.createSelectionHalo(node);
+        const transformer = this.getNodesSelectionPlugin()?.getTransformer();
+
+        if (!transformer) {
+          return;
+        }
+
+        if (transformer.nodes().length > 1) {
+          this.getNodesSelectionFeedbackPlugin()?.createSelectionHalo(node);
+        }
       };
 
       node.handleDeselectNode = () => {

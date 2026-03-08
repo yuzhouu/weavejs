@@ -1,6 +1,6 @@
 {
   "name": "@inditextech/weave-types",
-  "version": "2.24.0-SNAPSHOT",
+  "version": "3.2.0-SNAPSHOT",
   "type": "module",
   "license": "Apache-2.0",
   "author": "Jesus Manuel Piñeiro Cid <jesusmpc@inditex.com>",
@@ -36,7 +36,7 @@
     "lint:fix": "npm run lint -- --fix",
     "lint": "eslint ./src",
     "pack": "npm pack",
-    "publish:snapshot": "npm publish",
+    "publish:snapshot": "npm publish --tag next --access public",
     "release:perform": "npm publish --access public",
     "release:prepare": "npm run verify",
     "test": "vitest --typecheck --coverage --watch=false",
@@ -64,7 +64,7 @@
     "vitest-sonar-reporter": "2.0.0"
   },
   "engines": {
-    "node": "^18.12 || ^20.11 || ^22.11",
+    "node": ">=18.12",
     "npm": ">= 8.19.x"
   }
 }
