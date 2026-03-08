@@ -14,6 +14,7 @@ import {
   Undo,
   Redo,
 } from 'lucide-react';
+import { WeaveKonvaBaseRenderer } from '@inditextech/weave-renderer-konva-base';
 
 function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -26,9 +27,12 @@ function App() {
 
       const clientRect = containerRef.current.getBoundingClientRect();
 
+      const renderer = new WeaveKonvaBaseRenderer();
+
       weaveInstanceRef.current = new Weave(
         {
           store: STORE,
+          renderer: renderer,
           nodes: NODES(),
           actions: ACTIONS(),
           plugins: PLUGINS(() => {

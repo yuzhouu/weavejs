@@ -56,8 +56,8 @@
     "version:release": "npm version $RELEASE_VERSION -m \"[npm-scripts] prepare release $RELEASE_VERSION\" --tag-version-prefix \"\""
   },
   "dependencies": {
-    "@inditextech/weave-sdk": "3.2.0-SNAPSHOT",
-    "@inditextech/weave-types": "3.2.0-SNAPSHOT",
+    "@inditextech/weave-sdk": "workspace:*",
+    "@inditextech/weave-types": "workspace:*",
     "pino": "9.6.0",
     "pino-pretty": "13.0.0"
   },

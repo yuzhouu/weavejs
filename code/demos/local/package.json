@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@inditextech/weave-renderer-konva-base": "workspace:*",
     "@inditextech/weave-sdk": "workspace:*",
     "@inditextech/weave-types": "workspace:*",
     "lucide-react": "^0.575.0",
